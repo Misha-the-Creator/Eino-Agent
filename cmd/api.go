@@ -12,9 +12,11 @@ import (
 )
 
 type App struct {
-	Logger      *slog.Logger
-	pool        *pgxpool.Pool
-	addr        string
+	Logger    *slog.Logger
+	pool      *pgxpool.Pool
+	addr      string
+	apiKey    string
+	modelName string
 }
 
 func (app *App) mount() http.Handler {
