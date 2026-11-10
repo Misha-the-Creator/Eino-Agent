@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -9,7 +10,7 @@ import (
 )
 
 func main() {
-	// ctx := context.Background()
+	ctx := context.Background()
 
 	// Конфиг
 	cfg := config.MustLoad()
@@ -20,12 +21,20 @@ func main() {
 
 	// Маршрутизатор HTTP
 	appl := App{
-		addr:        fmt.Sprintf(":%v", cfg.App.Port),
-		
-		Logger:      log,
+		ctx:       ctx,
+		addr:      fmt.Sprintf(":%v", cfg.App.Port),
+		apiKey:    cfg.LLM.APIkey,
+		modelName: cfg.LLM.ModelName,
+		Logger:    log,
 	}
 
-	if err := appl.run(appl.mount()); err != nil {
+	h, err := appl.mount()
+	if err != nil {
+		log.Error("Произошла ошибка при сборке роутера:", "err", err)
+		os.Exit(1)
+	}
+
+	if err := appl.run(h); err != nil {
 		log.Error("Произошла ошибка при запуске сервера:", "err", err)
 		os.Exit(1)
 	}

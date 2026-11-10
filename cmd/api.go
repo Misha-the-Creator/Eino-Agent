@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"time"
 
+	"github.com/Misha-the-Creator/Eino-Agent/generated"
 	"github.com/Misha-the-Creator/Eino-Agent/internal/agent"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -17,22 +19,30 @@ type App struct {
 	addr      string
 	apiKey    string
 	modelName string
+	ctx       context.Context
 }
 
-func (app *App) mount() http.Handler {
+func (app *App) mount() (http.Handler, error) {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	// forecastStore := forecasttable.NewStore(app.Logger)
-	// loadFactRepo := factloading.NewRepo(queries, app.Logger)
-	// loadFactSvc := factloading.NewSvc(loadFactRepo, app.Logger, app.bathSize, txm, forecastStore)
-	agentHndlr := agent.NewHndlr(app.Logger)
+	//
+	var q *generated.Queries
+	MAS, err := BuildMAS(app.ctx, app, q)
+
+	if err != nil {
+		app.Logger.Error("Ошибка при сборке MAS", "err", err)
+		return nil, err
+	}
+
+	agentSvc := agent.NewSvc(app.Logger)
+	agentHndlr := agent.NewHndlr(agentSvc, app.Logger, MAS)
 	r.Post("/agent", agentHndlr.AgentRoute)
 
-	return r
+	return r, nil
 }
 
 func (app *App) run(h http.Handler) error {

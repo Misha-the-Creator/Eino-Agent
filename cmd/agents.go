@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/Misha-the-Creator/Eino-Agent/generated"
 	"github.com/Misha-the-Creator/Eino-Agent/internal/llm"
@@ -10,7 +9,9 @@ import (
 	"github.com/cloudwego/eino/components/tool"
 )
 
-func BuildMAS(ctx context.Context, appSettings App, log *slog.Logger, q *generated.Queries) (*adk.ChatModelAgent, error) {
+func BuildMAS(ctx context.Context, appSettings *App, q *generated.Queries) (*adk.Runner, error) {
+
+	log := appSettings.Logger
 
 	// Инициализация LLM-клиента
 	llmClient, err := llm.GetLLM(ctx, appSettings.apiKey,
@@ -40,5 +41,7 @@ func BuildMAS(ctx context.Context, appSettings App, log *slog.Logger, q *generat
 		return nil, err
 	}
 
-	return agentCoordinator, nil
+	agentRunner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agentCoordinator, EnableStreaming: true})
+
+	return agentRunner, nil
 }

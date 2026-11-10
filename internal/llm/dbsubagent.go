@@ -40,7 +40,7 @@ func CreateDBSubagent(ctx context.Context, llm *openai.ChatModel, log *slog.Logg
 	}
 
 	subAgent, _ := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
-		Name:        "Агент по работе с базой данных",
+		Name:        "DataBaseAgent",
 		Description: "Если пользователь требует выполнить поиск наибольших/наименьших значений",
 		Instruction: "Ты — ассистент по работе с базой данных",
 		Model:       llm,
