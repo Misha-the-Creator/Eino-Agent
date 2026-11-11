@@ -7,6 +7,7 @@ import (
 
 	"github.com/Misha-the-Creator/Eino-Agent/internal/config"
 	"github.com/Misha-the-Creator/Eino-Agent/internal/logger"
+	"github.com/Misha-the-Creator/Eino-Agent/internal/storage/connection"
 )
 
 func main() {
@@ -19,6 +20,19 @@ func main() {
 	log := logger.SetupLogger(cfg.App.IsLocal)
 	log.Debug("Параметры конфигурации", "cfg", cfg)
 
+	// БД
+	dbConnection := connection.Conn{
+	Host:     cfg.DB.Host,
+	Port:     cfg.DB.Port,
+	User:     cfg.DB.User,
+	Name:     cfg.DB.Name,
+	Password: cfg.DB.Password,
+	SSLMode:  cfg.DB.SSLMode,
+	Log:      log,
+	}
+	pool := dbConnection.MakeConnection(ctx)
+	defer pool.Close()
+
 	// Маршрутизатор HTTP
 	appl := App{
 		ctx:       ctx,
@@ -26,6 +40,7 @@ func main() {
 		apiKey:    cfg.LLM.APIkey,
 		modelName: cfg.LLM.ModelName,
 		Logger:    log,
+		pool: pool,
 	}
 
 	h, err := appl.mount()

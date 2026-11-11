@@ -28,11 +28,19 @@ func BuildMAS(ctx context.Context, appSettings *App, q *generated.Queries) (*adk
 	dbSubagent, err := llm.CreateDBSubagent(ctx, llmClient, log, q)
 
 	if err != nil {
-		log.Error("Ошибка при сборке MAS", "err", err)
+		log.Error("Ошибка при сборке субагента по работе с БД", "err", err)
 		return nil, err
 	}
 
-	subagentsList := []tool.BaseTool{dbSubagent}
+		// Построение субагентов
+	insertSubagent, err := llm.CreateDBInsertSubagent(ctx, llmClient, log, q)
+
+	if err != nil {
+		log.Error("Ошибка при сборке субагента по работе с БД", "err", err)
+		return nil, err
+	}
+
+	subagentsList := []tool.BaseTool{dbSubagent, insertSubagent}
 
 	agentCoordinator, err := llm.BuildCoordinator(ctx, log, subagentsList, llmClient)
 

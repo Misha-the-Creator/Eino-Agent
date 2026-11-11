@@ -13,17 +13,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type User struct {
-	FileName string `json:"user_id" jsonschema:"required" jsonschema_description:"Название файла"`
+type FileName struct {
+	FileName string `json:"file_name" jsonschema:"required" jsonschema_description:"Название файла"`
 }
 
 func QueryRow(ctx context.Context, q *generated.Queries, log *slog.Logger) (tool.InvokableTool, error) {
-	toolFunc := func(ctx context.Context, input *User) (generated.UploadedFile, error) {
+	toolFunc := func(ctx context.Context, input *FileName) (generated.GetRowRow, error) {
 		fileNameStr := input.FileName
-		row, err := q.GetRow(ctx, pgtype.Text{String: fileNameStr})
+		row, err := q.GetRow(ctx, pgtype.Text{String: fileNameStr, Valid: true})
 		if err != nil {
 			log.Error("Произошла ошибка при фетче по названию")
-			return generated.UploadedFile{}, err
+			return generated.GetRowRow{}, err
 		}
 		return row, nil
 	}
@@ -41,7 +41,7 @@ func CreateDBSubagent(ctx context.Context, llm *openai.ChatModel, log *slog.Logg
 
 	subAgent, _ := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
 		Name:        "DataBaseAgent",
-		Description: "Если пользователь требует выполнить поиск наибольших/наименьших значений",
+		Description: "Если пользователь просит вывести информацию о конкретной строке базы данных",
 		Instruction: "Ты — ассистент по работе с базой данных",
 		Model:       llm,
 		ToolsConfig: adk.ToolsConfig{ToolsNodeConfig: compose.ToolsNodeConfig{

@@ -30,7 +30,8 @@ func (app *App) mount() (http.Handler, error) {
 	r.Use(middleware.Recoverer)
 
 	//
-	var q *generated.Queries
+	
+	q := generated.New(app.pool)
 	MAS, err := BuildMAS(app.ctx, app, q)
 
 	if err != nil {

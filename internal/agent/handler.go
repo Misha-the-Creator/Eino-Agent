@@ -43,7 +43,7 @@ func (a *AgentHndlr) AgentRoute(w http.ResponseWriter, r *http.Request) {
 	}
 	a.logger.Info("Что пришло с хэндлера", "msg", message)
 
-	modelAns, err := a.svc.AgentAns(a.mas, message.Message, r.Context())
+	modelAns, err := a.svc.AgentAns(r.Context(), a.mas, message.Message)
 
 	if err != nil {
 		a.logger.Error("Ошибка при получении ответа от MAS", "err", err)

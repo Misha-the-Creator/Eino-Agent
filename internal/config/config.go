@@ -10,11 +10,21 @@ import (
 type Config struct {
 	LLM LLMConfig `env-prefix:"LLM__"`
 	App AppConfig `env-prefix:"APP__"`
+	DB DBconfig `env-prefix:"DB__"`
 }
 
 type LLMConfig struct {
 	APIkey    string `env:"API_KEY" env-required:"true"`
 	ModelName string `env:"MODEL_NAME" env-required:"true"`
+}
+
+type DBconfig struct {
+	Host    string `env:"HOST" env-required:"true"`
+	Port    string `env:"PORT" env-required:"true"`
+	User string `env:"USER" env-required:"true"`
+	Name string `env:"NAME" env-required:"true"`
+	Password string `env:"PASSWORD" env-required:"true"`
+	SSLMode string `env:"SSLMODE" env-required:"true"`
 }
 
 type AppConfig struct {

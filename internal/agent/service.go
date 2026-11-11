@@ -2,9 +2,7 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 
 	"github.com/cloudwego/eino/adk"
@@ -12,7 +10,7 @@ import (
 )
 
 type AgentSvcInt interface {
-	AgentAns(mas *adk.Runner, userRequest string, ctx context.Context) (string, error)
+	AgentAns(ctx context.Context, mas *adk.Runner, userRequest string) (string, error)
 }
 
 type AgentSvc struct {
@@ -28,11 +26,11 @@ func NewSvc(logger *slog.Logger) AgentSvcInt {
 	return &AgentSvc{logger: logger}
 }
 
-func (a *AgentSvc) AgentAns(mas *adk.Runner, userRequest string, ctx context.Context) (string, error) {
+func (a *AgentSvc) AgentAns(ctx context.Context, mas *adk.Runner, userRequest string) (string, error) {
 
 	iter := mas.Run(ctx, []*schema.Message{
 		schema.UserMessage(userRequest),
-	}, adk.WithSessionValues(map[string]any{"user": "alice"}))
+	}, adk.WithSessionValues(map[string]any{"user": "mikhail"}))
 
 	answer := ""
 
@@ -41,88 +39,45 @@ func (a *AgentSvc) AgentAns(mas *adk.Runner, userRequest string, ctx context.Con
 		if !ok {
 			break
 		}
+		
 		if event.Err != nil {
-			a.logger.Error("Ошибка при прогоне MAS", "err", event.Err)
-			return "", event.Err
+			a.logger.Error("Ошибка при выполнении MAS", "err", event.Err)
+			return "", fmt.Errorf("ошибка выполнения MAS: %w", event.Err)
 		}
 
-		// Событие всегда забираем целиком: в стриминговом режиме Message == nil,
-		// и данные лежат в MessageStream.
-		var msg *schema.Message
-		var err error
-		if event.Output != nil && event.Output.MessageOutput != nil && event.Output.MessageOutput.MessageStream != nil {
-			st := event.Output.MessageOutput.MessageStream
-			var parts []*schema.Message
-			for i := 0; ; {
-				ch, chErr := st.Recv()
-				if chErr != nil {
-					err = chErr
-					break
-				}
-				i++
-				a.logger.Info("DEBUG chunk", "i", i+1, "chunk", fmt.Sprintf("%+v", ch))
-				parts = append(parts, ch)
-			}
-			st.Close()
-			if err != nil && errors.Is(err, io.EOF) {
-				err = nil
-			}
-			if len(parts) > 0 {
-				msg, err = schema.ConcatMessages(parts)
-			}
-		} else {
-			msg, err = messageFromEvent(event)
-		}
-		a.logger.Info("DEBUG событие",
-			"agent", event.AgentName,
-			"outputNil", event.Output == nil,
-			"msgOutNil", event.Output == nil || event.Output.MessageOutput == nil,
-			"mvRole", func() any { if event.Output != nil && event.Output.MessageOutput != nil { return event.Output.MessageOutput.Role }; return nil }(),
-			"streaming", func() bool { if event.Output != nil && event.Output.MessageOutput != nil { return event.Output.MessageOutput.IsStreaming }; return false }(),
-			"err", err,
-			"role", func() any { if msg != nil { return msg.Role }; return nil }(),
-			"len", func() int { if msg != nil { return len(msg.Content) }; return 0 }(),
-			"content", func() string { if msg != nil && len(msg.Content) > 60 { return msg.Content[:60] }; if msg != nil { return msg.Content }; return "" }(),
-			"toolCalls", func() int { if msg != nil { return len(msg.ToolCalls) }; return 0 }(),
-		)
-		if err != nil {
-			a.logger.Error("Ошибка при разборе события MAS", "err", err)
-			return "", err
-		}
-		if msg == nil || msg.Role != schema.Assistant || msg.Content == "" {
+		if event.Output == nil || event.Output.MessageOutput == nil {
 			continue
 		}
 
-		answer = msg.Content
-	}
+		mo := event.Output.MessageOutput
+		msg, err := mo.GetMessage() // сам склеит поток, если включен стриминг
+		if err != nil {
+			continue
+		}
 
-	if answer == "" {
-		a.logger.Error("MAS не вернул ответа")
-		return "", fmt.Errorf("MAS не вернул ответа")
-	}
+		// 1) Модель решила вызвать инструмент / субагента
+		for _, tc := range msg.ToolCalls {
+			a.logger.Info("TOOL CALL",
+				"agent", event.AgentName,
+				"path", event.RunPath,
+				"tool", tc.Function.Name,
+				"args", tc.Function.Arguments)
+		}
+
+		// 2) Результат инструмента
+		if mo.Role == schema.Tool {
+			a.logger.Info("TOOL RESULT",
+				"agent", event.AgentName,
+				"tool", mo.ToolName,
+				"result", msg.Content)
+		}
+
+		// 3) Обычный ответ модели
+		if mo.Role == schema.Assistant && len(msg.ToolCalls) == 0 {
+			a.logger.Info("ANSWER", "agent", event.AgentName, "text", msg.Content)
+		}
+		}
+
 
 	return answer, nil
-}
-
-// messageFromEvent достаёт сообщение из события раннера,
-// склеивая чанки, если ответ пришёл стримом.
-func messageFromEvent(event *adk.AgentEvent) (*schema.Message, error) {
-	if event == nil || event.Output == nil || event.Output.MessageOutput == nil {
-		return nil, nil
-	}
-
-	output := event.Output.MessageOutput
-
-	if output.Message != nil {
-		return output.Message, nil
-	}
-
-	if output.MessageStream == nil {
-		return nil, nil
-	}
-
-	stream := output.MessageStream
-	defer stream.Close()
-
-	return schema.ConcatMessageStream(stream)
 }

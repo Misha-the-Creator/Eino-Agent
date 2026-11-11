@@ -12,22 +12,34 @@ import (
 )
 
 const getRow = `-- name: GetRow :one
-SELECT id, uuid, filename, content, content_type, size_bytes, sha256, created_at FROM public.uploaded_files
+SELECT filename, size_bytes, created_at FROM public.uploaded_files
 WHERE filename = $1
 `
 
-func (q *Queries) GetRow(ctx context.Context, filename pgtype.Text) (UploadedFile, error) {
+type GetRowRow struct {
+	Filename  pgtype.Text        `json:"filename"`
+	SizeBytes pgtype.Int8        `json:"size_bytes"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) GetRow(ctx context.Context, filename pgtype.Text) (GetRowRow, error) {
 	row := q.db.QueryRow(ctx, getRow, filename)
-	var i UploadedFile
-	err := row.Scan(
-		&i.ID,
-		&i.Uuid,
-		&i.Filename,
-		&i.Content,
-		&i.ContentType,
-		&i.SizeBytes,
-		&i.Sha256,
-		&i.CreatedAt,
-	)
+	var i GetRowRow
+	err := row.Scan(&i.Filename, &i.SizeBytes, &i.CreatedAt)
 	return i, err
+}
+
+const insertRow = `-- name: InsertRow :exec
+INSERT INTO public.uploaded_files (uuid, filename)
+VALUES ($1, $2)
+`
+
+type InsertRowParams struct {
+	Uuid     pgtype.UUID `json:"uuid"`
+	Filename pgtype.Text `json:"filename"`
+}
+
+func (q *Queries) InsertRow(ctx context.Context, arg InsertRowParams) error {
+	_, err := q.db.Exec(ctx, insertRow, arg.Uuid, arg.Filename)
+	return err
 }
